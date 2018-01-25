@@ -15,15 +15,6 @@
  */
 package org.saiku.query;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.io.Writer;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.commons.lang.StringUtils;
 import org.olap4j.Axis;
 import org.olap4j.CellSet;
@@ -47,654 +38,473 @@ import org.saiku.query.metadata.CalculatedMeasure;
 import org.saiku.query.metadata.CalculatedMember;
 import org.saiku.query.util.QueryUtil;
 
-public class Query {
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
+public class Query {
     protected final String name;
-    protected Map<Axis, QueryAxis> axes = new HashMap<Axis, QueryAxis>();
+    protected Map<Axis, QueryAxis> axes = new HashMap();
     protected QueryAxis across;
     protected QueryAxis down;
     protected QueryAxis filter;
     protected QueryAxis unused;
     protected final Cube cube;
-    protected Map<String, QueryHierarchy> hierarchyMap =
-        new HashMap<String, QueryHierarchy>();
-    
-    protected NamedList<CalculatedMeasure> calculatedMeasures = new NamedListImpl<CalculatedMeasure>();
-    
+    protected Map<String, QueryHierarchy> hierarchyMap = new HashMap();
+    protected NamedList<CalculatedMeasure> calculatedMeasures = new NamedListImpl();
     protected QueryDetails details;
-    /**
-     * Whether or not to select the default hierarchy and default
-     * member on a hierarchy if no explicit selections were performed.
-     */
     protected boolean selectDefaultMembers = true;
     private final OlapConnection connection;
-	private HierarchizeMode defaultHierarchizeMode = HierarchizeMode.PRE;
-	private boolean visualTotals = false;
-	private String visualTotalsPattern;
-	private boolean lowestLevelsOnly = false;
-	private Map<String, String> parameters = new HashMap<String, String>();
-	private Map<String, List<String>> aggregators = new HashMap<String, List<String>>();
-	
-    /**
-     * Constructs a Query object.
-     * @param name Any arbitrary name to give to this query.
-     * @param cube A Cube object against which to build a query.
-     * @throws SQLException If an error occurs while accessing the
-     * cube's underlying connection.
-     */
+    private HierarchizeMode defaultHierarchizeMode;
+    private boolean visualTotals;
+    private String visualTotalsPattern;
+    private boolean lowestLevelsOnly;
+    private Map<String, String> parameters;
+    private Map<String, List<String>> aggregators;
+
     public Query(String name, Cube cube) throws SQLException {
-        super();
+        this.defaultHierarchizeMode = HierarchizeMode.PRE;
+        this.visualTotals = false;
+        this.lowestLevelsOnly = false;
+        this.parameters = new HashMap();
+        this.aggregators = new HashMap();
         this.name = name;
         this.cube = cube;
-        final Catalog catalog = cube.getSchema().getCatalog();
-        this.connection =
-            catalog.getMetaData().getConnection().unwrap(OlapConnection.class);
+        Catalog catalog = cube.getSchema().getCatalog();
+        this.connection = (OlapConnection)catalog.getMetaData().getConnection().unwrap(OlapConnection.class);
         this.connection.setCatalog(catalog.getName());
-        this.unused = new QueryAxis(this, null);
-        for (Hierarchy hierarchy : cube.getHierarchies()) {
-            QueryHierarchy queryHierarchy = new QueryHierarchy(
-                this, hierarchy);
-            unused.getQueryHierarchies().add(queryHierarchy);
-            hierarchyMap.put(queryHierarchy.getUniqueName(), queryHierarchy);
+        this.unused = new QueryAxis(this, (Axis)null);
+        Iterator i$ = cube.getHierarchies().iterator();
+
+        while(i$.hasNext()) {
+            Hierarchy hierarchy = (Hierarchy)i$.next();
+            QueryHierarchy queryHierarchy = new QueryHierarchy(this, hierarchy);
+            this.unused.getQueryHierarchies().add(queryHierarchy);
+            this.hierarchyMap.put(queryHierarchy.getUniqueName(), queryHierarchy);
         }
-        across = new QueryAxis(this, Axis.COLUMNS);
-        down = new QueryAxis(this, Axis.ROWS);
-        filter = new QueryAxis(this, Axis.FILTER);
-        axes.put(null, unused);
-        axes.put(Axis.COLUMNS, across);
-        axes.put(Axis.ROWS, down);
-        axes.put(Axis.FILTER, filter);
-        details = new QueryDetails(this, Axis.COLUMNS);
+
+        this.across = new QueryAxis(this, Axis.COLUMNS);
+        this.down = new QueryAxis(this, Axis.ROWS);
+        this.filter = new QueryAxis(this, Axis.FILTER);
+        this.axes.put(null, this.unused);
+        this.axes.put(Axis.COLUMNS, this.across);
+        this.axes.put(Axis.ROWS, this.down);
+        this.axes.put(Axis.FILTER, this.filter);
+        this.details = new QueryDetails(this, Axis.COLUMNS);
     }
 
-    /**
-     * Returns the MDX parse tree behind this Query. The returned object is
-     * generated for each call to this function. Altering the returned
-     * SelectNode object won't affect the query itself.
-     * @return A SelectNode object representing the current query structure.
-     * @throws OlapException 
-     */
     public SelectNode getSelect() throws OlapException {
-    	try {
-    		return Olap4jNodeConverter.toQuery(this);
-    	} catch (Exception e) {
-    		throw new OlapException("Error creating Select", e);
-    	}
-    }
-    
-    public String getMdx() throws OlapException {
-    	final Writer writer = new StringWriter();
-    	this.getSelect().unparse(new ParseTreeWriter(new PrintWriter(writer)));
-    	return writer.toString();
-    }
-
-    /**
-     * Returns the underlying cube object that is used to query against.
-     * @return The Olap4j's Cube object.
-     */
-    public Cube getCube() {
-        return cube;
-    }
-
-    /**
-     * Returns the underlying connection object that is used to query against.
-     * @return The Olap4j's Connection object.
-     */
-    public OlapConnection getConnection() {
-    	return connection;
-    }
-    
-    /**
-     * Returns the underlying catalog object that is used to query against.
-     * @return The Olap4j's Catalog object.
-     */
-    public Catalog getCatalog() {
-    	return cube.getSchema().getCatalog();
-    }
-    
-    /**
-     * Returns the Olap4j's QueryHierarchy object according to the name
-     * given as a parameter. If no hierarchy of the given name is found,
-     * a null value will be returned.
-     * @param name The name of the hierarchy you want the object for.
-     * @return The hierarchy object, null if no hierarchy of that
-     * name can be found.
-     */
-    public QueryHierarchy getHierarchy(String name) {
-        if (hierarchyMap.containsKey(name)) {
-        	return hierarchyMap.get(name);
-        } else {
-        	for (QueryHierarchy qh : hierarchyMap.values()) {
-        		if (qh.getName().equals(name)) {
-        			return qh;
-        		}
-        	}
+        try {
+            return Olap4jNodeConverter.toQuery(this);
+        } catch (Exception var2) {
+            throw new OlapException("Error creating Select", var2);
         }
+    }
+
+    public String getMdx() throws OlapException {
+        StringWriter writer = new StringWriter();
+        this.getSelect().unparse(new ParseTreeWriter(new PrintWriter(writer)));
+        return writer.toString();
+    }
+
+    public Cube getCube() {
+        return this.cube;
+    }
+
+    public OlapConnection getConnection() {
+        return this.connection;
+    }
+
+    public Catalog getCatalog() {
+        return this.cube.getSchema().getCatalog();
+    }
+
+    public QueryHierarchy getHierarchy(String name) {
+        if(this.hierarchyMap.containsKey(name)) {
+            return (QueryHierarchy)this.hierarchyMap.get(name);
+        } else {
+            Iterator i$ = this.hierarchyMap.values().iterator();
+
+            QueryHierarchy qh;
+            do {
+                if(!i$.hasNext()) {
+                    return null;
+                }
+
+                qh = (QueryHierarchy)i$.next();
+            } while(!qh.getName().equals(name));
+
+            return qh;
+        }
+    }
+
+    public QueryHierarchy getHierarchy(Hierarchy hierarchy) {
+        return hierarchy == null?null:(QueryHierarchy)this.hierarchyMap.get(hierarchy.getUniqueName());
+    }
+
+    public QueryLevel getLevel(Hierarchy hierarchy, String name) {
+        QueryHierarchy h = (QueryHierarchy)this.hierarchyMap.get(hierarchy.getUniqueName());
+        return h.getActiveLevel(name);
+    }
+
+    public QueryLevel getLevel(Level level) {
+        return this.getLevel(level.getHierarchy(), level.getName());
+    }
+
+    public QueryLevel getLevel(String uniqueLevelName) {
+        if(StringUtils.isNotBlank(uniqueLevelName)) {
+            Iterator i$ = this.hierarchyMap.values().iterator();
+
+            while(i$.hasNext()) {
+                QueryHierarchy qh = (QueryHierarchy)i$.next();
+                Iterator i$1 = qh.getActiveQueryLevels().iterator();
+
+                while(i$1.hasNext()) {
+                    QueryLevel ql = (QueryLevel)i$1.next();
+                    if(ql.getUniqueName().equals(uniqueLevelName)) {
+                        return ql;
+                    }
+                }
+            }
+        }
+
         return null;
     }
 
-    /**
-     * Returns the Olap4j's QueryHierarchy object according to the Hierarchy
-     * given as a parameter. If no QueryHierarchy is found,
-     * a null value will be returned.
-     * @param hierarchy The Hierarchy of the QueryHierarchy you want the object for.
-     * @return The QueryHierarchy object, null if no hierarchy of that
-     * name can be found.
-     */
-    public QueryHierarchy getHierarchy(Hierarchy hierarchy) {
-    	if (hierarchy == null) {
-    		return null;
-    	}
-    	return hierarchyMap.get(hierarchy.getUniqueName());
-    }
-
-
-    /**
-     * Returns the Olap4j's QueryLevel object according to the name
-     * given as a parameter. If no Level of the given name is found,
-     * a null value will be returned.
-     * @param name The name of the Level you want the object for.
-     * @return The QueryLevel object, null if no Level of that
-     * name can be found.
-     */
-    public QueryLevel getLevel(Hierarchy hierarchy, String name) {
-        QueryHierarchy h =  hierarchyMap.get(hierarchy.getUniqueName());
-        return h.getActiveLevel(name);
-    }
-    
-    /**
-     * Returns the Olap4j's QueryLevel object according to the Level
-     * given as a parameter. If no Level of the given name is found,
-     * a null value will be returned.
-
-     * @param level The Level you want the QueryLevel for
-     * @return The QueryLevel object, null if no Level of that
-     * name can be found.
-     */
-    public QueryLevel getLevel(Level level) {
-        return getLevel(level.getHierarchy(), level.getName());
-    }
-
-    /**
-     * Returns the Olap4j's QueryLevel object according to the 
-     * unique Level name given as parameter. If no Level of the given name is found,
-     * a null value will be returned.
-     */
-    public QueryLevel getLevel(String uniqueLevelName) {
-    	if (StringUtils.isNotBlank(uniqueLevelName)) {
-	    	for (QueryHierarchy qh : hierarchyMap.values()) {
-	    		for (QueryLevel ql : qh.getActiveQueryLevels()) {
-	    			if (ql.getUniqueName().equals(uniqueLevelName)) {
-	    				return ql;
-	    			}
-	    		}
-	    	}
-    	}
-    	return null;
-    }
-
-    /**
-     * Swaps rows and columns axes. Only applicable if there are two axes.
-     */
     public void swapAxes() {
-        // Only applicable if there are two axes - plus filter and unused.
-        if (axes.size() != 4) {
+        if(this.axes.size() != 4) {
             throw new IllegalArgumentException();
+        } else {
+            ArrayList tmpAcross = new ArrayList();
+            tmpAcross.addAll(this.across.getQueryHierarchies());
+            ArrayList tmpDown = new ArrayList();
+            tmpDown.addAll(this.down.getQueryHierarchies());
+            this.across.getQueryHierarchies().clear();
+            HashMap acrossChildList = new HashMap();
+
+            for(int downChildList = 0; downChildList < tmpAcross.size(); ++downChildList) {
+                acrossChildList.put(Integer.valueOf(downChildList), tmpAcross.get(downChildList));
+            }
+
+            this.down.getQueryHierarchies().clear();
+            HashMap var6 = new HashMap();
+
+            for(int cpt = 0; cpt < tmpDown.size(); ++cpt) {
+                var6.put(Integer.valueOf(cpt), tmpDown.get(cpt));
+            }
+
+            this.across.getQueryHierarchies().addAll(tmpDown);
+            this.down.getQueryHierarchies().addAll(tmpAcross);
         }
-        List<QueryHierarchy> tmpAcross = new ArrayList<QueryHierarchy>();
-        tmpAcross.addAll(across.getQueryHierarchies());
-
-        List<QueryHierarchy> tmpDown = new ArrayList<QueryHierarchy>();
-        tmpDown.addAll(down.getQueryHierarchies());
-
-        across.getQueryHierarchies().clear();
-        Map<Integer, QueryHierarchy> acrossChildList =
-            new HashMap<Integer, QueryHierarchy>();
-        for (int cpt = 0; cpt < tmpAcross.size();cpt++) {
-            acrossChildList.put(Integer.valueOf(cpt), tmpAcross.get(cpt));
-        }
-
-        down.getQueryHierarchies().clear();
-        Map<Integer, QueryHierarchy> downChildList =
-            new HashMap<Integer, QueryHierarchy>();
-        for (int cpt = 0; cpt < tmpDown.size();cpt++) {
-            downChildList.put(Integer.valueOf(cpt), tmpDown.get(cpt));
-        }
-
-        across.getQueryHierarchies().addAll(tmpDown);
-
-        down.getQueryHierarchies().addAll(tmpAcross);
     }
 
-    /**
-     * Returns the query axis for a given axis type.
-     *
-     * <p>If you pass axis=null, returns a special axis that is used to hold
-     * all unused hierarchies. (We may change this behavior in future.)
-     *
-     * @param axis Axis type
-     * @return Query axis
-     */
     public QueryAxis getAxis(Axis axis) {
-        return this.axes.get(axis);
+        return (QueryAxis)this.axes.get(axis);
     }
 
-    /**
-     * Returns a map of the current query's axis.
-     * <p>Be aware that modifications to this list might
-     * have unpredictable consequences.</p>
-     * @return A standard Map object that represents the
-     * current query's axis.
-     */
     public Map<Axis, QueryAxis> getAxes() {
-        return axes;
+        return this.axes;
     }
-    
-    public CalculatedMember createCalculatedMember(
-    		QueryHierarchy hierarchy,
-    		String name,
-    		String formula,
-    		Map<Property, Object> properties) 
-    {
-    	Hierarchy h = hierarchy.getHierarchy();
-    	CalculatedMember cm = new CalculatedMember(
-    			h.getDimension(), 
-    			h, 
-    			name, 
-    			name,
-    			null,
-    			Type.FORMULA,
-    			formula,
-    			null);
-    	addCalculatedMember(hierarchy, cm);
-    	return cm;
+
+    public CalculatedMember createCalculatedMember(QueryHierarchy hierarchy, String name, String formula, Map<Property, Object> properties, boolean mondrian3) {
+        Hierarchy h = hierarchy.getHierarchy();
+        CalculatedMember cm = new CalculatedMember(h.getDimension(), h, name, name, (Member)null, Type.FORMULA, formula, (Map)null, mondrian3);
+        this.addCalculatedMember(hierarchy, cm);
+        return cm;
     }
-    
-    public CalculatedMember createCalculatedMember(
-    		QueryHierarchy hierarchy,
-    		Member parentMember,
-    		String name,
-    		String formula,
-    		Map<Property, Object> properties) 
-    {
-    	Hierarchy h = hierarchy.getHierarchy();
-    	CalculatedMember cm = new CalculatedMember(
-    			h.getDimension(), 
-    			h, 
-    			name, 
-    			name,
-    			parentMember,
-    			Type.FORMULA,
-    			formula,
-    			null);
-    	addCalculatedMember(hierarchy, cm);
-    	return cm;
+
+    public CalculatedMember createCalculatedMember(QueryHierarchy hierarchy, Member parentMember, String name, String formula, Map<Property, Object> properties, boolean mondrian3) {
+        Hierarchy h = hierarchy.getHierarchy();
+        CalculatedMember cm = new CalculatedMember(h.getDimension(), h, name, name, parentMember, Type.FORMULA, formula, (Map)null, mondrian3);
+        this.addCalculatedMember(hierarchy, cm);
+        return cm;
     }
-    
+
     public void addCalculatedMember(QueryHierarchy hierarchy, CalculatedMember cm) {
-    	hierarchy.addCalculatedMember(cm);
+        hierarchy.addCalculatedMember(cm);
     }
-    
+
     public NamedList<CalculatedMember> getCalculatedMembers(QueryHierarchy hierarchy) {
-    	return hierarchy.getCalculatedMembers();
+        return hierarchy.getCalculatedMembers();
     }
-    
+
     public NamedList<CalculatedMember> getCalculatedMembers() {
-    	NamedList<CalculatedMember> cm = new NamedListImpl<CalculatedMember>();
-    	for (QueryHierarchy h : hierarchyMap.values()) {
-    		cm.addAll(h.getCalculatedMembers());
-    	}
-    	return cm;
+        NamedListImpl cm = new NamedListImpl();
+        Iterator i$ = this.hierarchyMap.values().iterator();
+
+        while(i$.hasNext()) {
+            QueryHierarchy h = (QueryHierarchy)i$.next();
+            cm.addAll(h.getCalculatedMembers());
+        }
+
+        return cm;
     }
 
-    public CalculatedMeasure createCalculatedMeasure(
-    		String name,
-    		String formula,
-    		Map<Property, Object> properties) 
-    {
-    	if (cube.getMeasures().size() > 0) {
-    		Measure first = cube.getMeasures().get(0);
-    		return createCalculatedMeasure(first.getHierarchy(), name, formula, properties);
-    	}
-    	throw new RuntimeException("There has to be at least one valid measure in the cube to create a calculated measure!");
+    public CalculatedMeasure createCalculatedMeasure(String name, String formula, Map<Property, Object> properties) {
+        if(this.cube.getMeasures().size() > 0) {
+            Measure first = (Measure)this.cube.getMeasures().get(0);
+            return this.createCalculatedMeasure(first.getHierarchy(), name, formula, properties);
+        } else {
+            throw new RuntimeException("There has to be at least one valid measure in the cube to create a calculated measure!");
+        }
     }
-    
-    public CalculatedMeasure createCalculatedMeasure(
-    		Hierarchy measureHierarchy,
-    		String name,
-    		String formula,
-    		Map<Property, Object> properties) 
-    {
-    	CalculatedMeasure cm = new CalculatedMeasure(
-    			measureHierarchy, 
-    			name, 
-    			name,
-    			formula,
-    			null);
-    	addCalculatedMeasure(cm);
-    	return cm;
+
+    public CalculatedMeasure createCalculatedMeasure(Hierarchy measureHierarchy, String name, String formula, Map<Property, Object> properties) {
+        CalculatedMeasure cm = new CalculatedMeasure(measureHierarchy, name, name, formula, (Map)null);
+        this.addCalculatedMeasure(cm);
+        return cm;
     }
-    
-    
+
     public void addCalculatedMeasure(CalculatedMeasure cm) {
-    	calculatedMeasures.add(cm);
+        this.calculatedMeasures.add(cm);
     }
-    
+
     public NamedList<CalculatedMeasure> getCalculatedMeasures() {
-    	return calculatedMeasures;
+        return this.calculatedMeasures;
     }
-    
+
     public CalculatedMeasure getCalculatedMeasure(String name) {
-    	return calculatedMeasures.get(name);
+        return (CalculatedMeasure)this.calculatedMeasures.get(name);
     }
-    
+
     public Measure getMeasure(String name) {
-    	for (Measure m : cube.getMeasures()) {
-    		if (name != null && name.equals(m.getName())) {
-    			return m;
-    		}
-    		if (name != null && m.getUniqueName().equals(name)) {
-    			return m;
-    		}
-    	}
-    	return null;
+        Iterator i$ = this.cube.getMeasures().iterator();
+
+        Measure m;
+        do {
+            if(!i$.hasNext()) {
+                return null;
+            }
+
+            m = (Measure)i$.next();
+            if(name != null && name.equals(m.getName())) {
+                return m;
+            }
+        } while(name == null || !m.getUniqueName().equals(name));
+
+        return m;
     }
-    
+
     public QueryDetails getDetails() {
-    	return details;
+        return this.details;
     }
 
-    /**
-     * Returns the fictional axis into which all unused hierarchies are stored.
-     * All hierarchies included in this axis will not be part of the query.
-     * @return The QueryAxis representing hierarchies that are currently not
-     * used inside the query.
-     */
     public QueryAxis getUnusedAxis() {
-        return unused;
+        return this.unused;
     }
 
-
-    /**
-     * Executes the query against the current OlapConnection and returns
-     * a CellSet object representation of the data.
-     *
-     * @return A proper CellSet object that represents the query execution
-     *     results.
-     * @throws OlapException If something goes sour, an OlapException will
-     *     be thrown to the caller. It could be caused by many things, like
-     *     a stale connection. Look at the root cause for more details.
-     */
     public CellSet execute() throws OlapException {
-        SelectNode mdx = getSelect();
-        final Catalog catalog = getCatalog();
+        SelectNode mdx = this.getSelect();
+        Catalog catalog = this.getCatalog();
+
         try {
             this.connection.setCatalog(catalog.getName());
-        } catch (SQLException e) {
-            throw new OlapException("Error while executing query", e);
+        } catch (SQLException var4) {
+            throw new OlapException("Error while executing query", var4);
         }
-        OlapStatement olapStatement = connection.createStatement();
+
+        OlapStatement olapStatement = this.connection.createStatement();
         return olapStatement.executeOlapQuery(mdx);
     }
 
-    /**
-     * Returns this query's name. There is no guarantee that it is unique
-     * and is set at object instanciation.
-     * @return This query's name.
-     */
     public String getName() {
-        return name;
+        return this.name;
     }
-    
-	public void moveHierarchy(QueryHierarchy hierarchy, Axis axis) {
-		moveHierarchy(hierarchy, axis, -1);
-	}
 
-	public void moveHierarchy(QueryHierarchy hierarchy, Axis axis, int position) {
-        QueryAxis oldQueryAxis = findAxis(hierarchy);
-        QueryAxis newQueryAxis = getAxis(axis);
-		
-        if (oldQueryAxis != null && newQueryAxis != null && (position > -1 || (oldQueryAxis.getLocation() != newQueryAxis.getLocation()))) {
-        	if (oldQueryAxis.getLocation() != null) {
-        		oldQueryAxis.removeHierarchy(hierarchy);
-        	}
-        	if (newQueryAxis.getLocation() != null) {
-	            if (position > -1) {
-	            	newQueryAxis.addHierarchy(position, hierarchy);
-	            } else {
-	            	newQueryAxis.addHierarchy(hierarchy);
-	            }
-        	}
+    public void moveHierarchy(QueryHierarchy hierarchy, Axis axis) {
+        this.moveHierarchy(hierarchy, axis, -1);
+    }
+
+    public void moveHierarchy(QueryHierarchy hierarchy, Axis axis, int position) {
+        QueryAxis oldQueryAxis = this.findAxis(hierarchy);
+        QueryAxis newQueryAxis = this.getAxis(axis);
+        if(oldQueryAxis != null && newQueryAxis != null && (position > -1 || oldQueryAxis.getLocation() != newQueryAxis.getLocation())) {
+            if(oldQueryAxis.getLocation() != null) {
+                oldQueryAxis.removeHierarchy(hierarchy);
+            }
+
+            if(newQueryAxis.getLocation() != null) {
+                if(position > -1) {
+                    newQueryAxis.addHierarchy(position, hierarchy);
+                } else {
+                    newQueryAxis.addHierarchy(hierarchy);
+                }
+            }
+        }
+
+    }
+
+    private QueryAxis findAxis(QueryHierarchy hierarchy) {
+        if(this.getUnusedAxis().getQueryHierarchies().contains(hierarchy)) {
+            return this.getUnusedAxis();
+        } else {
+            Map axes = this.getAxes();
+            Iterator i$ = axes.keySet().iterator();
+
+            Axis axis;
+            do {
+                if(!i$.hasNext()) {
+                    return null;
+                }
+
+                axis = (Axis)i$.next();
+            } while(!((QueryAxis)axes.get(axis)).getQueryHierarchies().contains(hierarchy));
+
+            return (QueryAxis)axes.get(axis);
         }
     }
-	
-	
-	private QueryAxis findAxis(QueryHierarchy hierarchy) {
-		if (getUnusedAxis().getQueryHierarchies().contains(hierarchy)) {
-			return getUnusedAxis();
-		}
-		else {
-			Map<Axis,QueryAxis> axes = getAxes();
-			for (Axis axis : axes.keySet()) {
-				if (axes.get(axis).getQueryHierarchies().contains(hierarchy)) {
-					return axes.get(axis);
-				}
-			}
-		
-		}
-		return null;
-	}
 
-    /**
-     * Behavior setter for a query. By default, if a hierarchy is placed on
-     * an axis but no selections are made, the default hierarchy and
-     * the default member will be selected when validating the query.
-     * This behavior can be turned off by this setter.
-     * @param selectDefaultMembers Enables or disables the default
-     * member and hierarchy selection upon validation.
-     */
     public void setSelectDefaultMembers(boolean selectDefaultMembers) {
         this.selectDefaultMembers = selectDefaultMembers;
     }
-    
+
     public void setDefaultHierarchizeMode(HierarchizeMode mode) {
-    	this.defaultHierarchizeMode = mode;
+        this.defaultHierarchizeMode = mode;
     }
-    
+
     public HierarchizeMode getDefaultHierarchizeMode() {
-    	return this.defaultHierarchizeMode;
+        return this.defaultHierarchizeMode;
     }
-    
+
     public void setVisualTotals(boolean visualTotals) {
-    	if (!visualTotals) {
-			this.visualTotalsPattern = null;
-		}
-    	this.visualTotals = visualTotals;
+        if(!visualTotals) {
+            this.visualTotalsPattern = null;
+        }
+
+        this.visualTotals = visualTotals;
     }
-    
+
     public boolean isVisualTotals() {
-    	return this.visualTotals;
+        return this.visualTotals;
     }
-    	
-	public void setVisualTotalsPattern(String pattern) {
-		this.visualTotalsPattern = pattern;
-	}
-	
-	public String getVisualTotalsPattern() {
-		return visualTotalsPattern;
-	}
-	
-	public void setLowestLevelsOnly(boolean lowest) {
-		this.lowestLevelsOnly = lowest;
-	}
-	
-	public boolean isLowestLevelsOnly() {
-		return this.lowestLevelsOnly;
-	}
-	
-	/**
-	 * @return the parameters
-	 */
-	public Map<String, String> getParameters() {
-		return parameters;
-	}
-	
-	public void retrieveParameters() {
-		for (QueryAxis qa : getAxes().values()) {
-			for (QueryHierarchy qh : qa.getQueryHierarchies()) {
-				for (QueryLevel ql : qh.getActiveQueryLevels()) {
-					String pName = ql.getParameterName();
-					if (StringUtils.isNotBlank(pName)) {
-						addOrSetParameter(pName);
-					}
-					
-					List<String> params = QueryUtil.retrieveSetParameters(ql);
-					addOrSetParameters(params);
-					
-				}
-				List<String> hparams = QueryUtil.retrieveSortableSetParameters(qh);
-				addOrSetParameters(hparams);
-			}
-			List<String> qparams = QueryUtil.retrieveSortableSetParameters(qa);
-			addOrSetParameters(qparams);
-		}
-	}
 
-	/**
-	 * @param parameters the parameters to set
-	 */
-	public void setParameters(Map<String, String> parameters) {
-		this.parameters  = parameters;
-	}
-	
-	public void setParameter(String name, String value) {
-		this.parameters.put(name, value);
-	}
+    public void setVisualTotalsPattern(String pattern) {
+        this.visualTotalsPattern = pattern;
+    }
 
-	public String getParameter(String parameter) {
-		if (parameters.containsKey(parameter)) {
-			return parameters.get(parameter);
-		}
-		return null;
-	}
-	
-	
-	public void addOrSetParameters(List<String> parameters) {
-		if (parameters != null) {
-			for (String param : parameters) {
-				addOrSetParameter(param);
-			}
-		}
-	}
-	public void addOrSetParameter(String parameter) {
-		if (StringUtils.isNotBlank(parameter)) {
-			if (!parameters.containsKey(parameter)) {
-				parameters.put(parameter, null);
-			}
-		}
-	}
-	
-	public List<String> getAggregators(String key) {
-		if (this.aggregators.containsKey(key)) {
-			return aggregators.get(key);
-		}
-		return new ArrayList<String>();
-	}
-	
-	public void setAggregators(String key, List<String> aggs) {
-		if (StringUtils.isNotBlank(key) && aggs != null) {
-			aggregators.put(key, aggs);
-		}
-	}
+    public String getVisualTotalsPattern() {
+        return this.visualTotalsPattern;
+    }
 
-	public static enum BackendFlavor {
+    public void setLowestLevelsOnly(boolean lowest) {
+        this.lowestLevelsOnly = lowest;
+    }
+
+    public boolean isLowestLevelsOnly() {
+        return this.lowestLevelsOnly;
+    }
+
+    public Map<String, String> getParameters() {
+        return this.parameters;
+    }
+
+    public void retrieveParameters() {
+        Iterator i$ = this.getAxes().values().iterator();
+
+        while(i$.hasNext()) {
+            QueryAxis qa = (QueryAxis)i$.next();
+            Iterator qparams = qa.getQueryHierarchies().iterator();
+
+            while(qparams.hasNext()) {
+                QueryHierarchy qh = (QueryHierarchy)qparams.next();
+                Iterator hparams = qh.getActiveQueryLevels().iterator();
+
+                while(hparams.hasNext()) {
+                    QueryLevel ql = (QueryLevel)hparams.next();
+                    String pName = ql.getParameterName();
+                    if(StringUtils.isNotBlank(pName)) {
+                        this.addOrSetParameter(pName);
+                    }
+
+                    List params = QueryUtil.retrieveSetParameters(ql);
+                    this.addOrSetParameters(params);
+                }
+
+                List hparams1 = QueryUtil.retrieveSortableSetParameters(qh);
+                this.addOrSetParameters(hparams1);
+            }
+
+            List qparams1 = QueryUtil.retrieveSortableSetParameters(qa);
+            this.addOrSetParameters(qparams1);
+        }
+
+    }
+
+    public void setParameters(Map<String, String> parameters) {
+        this.parameters = parameters;
+    }
+
+    public void setParameter(String name, String value) {
+        this.parameters.put(name, value);
+    }
+
+    public String getParameter(String parameter) {
+        return this.parameters.containsKey(parameter)?(String)this.parameters.get(parameter):null;
+    }
+
+    public void addOrSetParameters(List<String> parameters) {
+        if(parameters != null) {
+            Iterator i$ = parameters.iterator();
+
+            while(i$.hasNext()) {
+                String param = (String)i$.next();
+                this.addOrSetParameter(param);
+            }
+        }
+
+    }
+
+    public void addOrSetParameter(String parameter) {
+        if(StringUtils.isNotBlank(parameter) && !this.parameters.containsKey(parameter)) {
+            this.parameters.put(parameter, null);
+        }
+
+    }
+
+    public List<String> getAggregators(String key) {
+        return (List)(this.aggregators.containsKey(key)?(List)this.aggregators.get(key):new ArrayList());
+    }
+
+    public void setAggregators(String key, List<String> aggs) {
+        if(StringUtils.isNotBlank(key) && aggs != null) {
+            this.aggregators.put(key, aggs);
+        }
+
+    }
+
+    public Query.BackendFlavor getFlavor() throws OlapException {
+        String dataSourceInfo = this.connection.getOlapDatabase().getDataSourceInfo();
+        String proivder = this.connection.getOlapDatabase().getProviderName();
+        Query.BackendFlavor[] arr$ = Query.BackendFlavor.values();
+        int len$ = arr$.length;
+
+        for(int i$ = 0; i$ < len$; ++i$) {
+            Query.BackendFlavor flavor = arr$[i$];
+            if(proivder.contains(flavor.token) || dataSourceInfo.contains(flavor.token)) {
+                return flavor;
+            }
+        }
+
+        throw new AssertionError("Can\'t determine the backend vendor. (" + dataSourceInfo + ")");
+    }
+
+    public enum BackendFlavor {
         MONDRIAN("Mondrian"),
         SSAS("Microsoft"),
         PALO("Palo"),
         SAP("SAP"),
         ESSBASE("Essbase"),
         UNKNOWN("");
-        
 
         private final String token;
 
-        private BackendFlavor(String token) {
+        BackendFlavor(String token) {
             this.token = token;
         }
-	}
-	
-	public BackendFlavor getFlavor() throws OlapException {
-            final String dataSourceInfo =
-                this.connection.getOlapDatabase().getDataSourceInfo();
-            final String proivder = this.connection.getOlapDatabase().getProviderName();
-            for (BackendFlavor flavor : BackendFlavor.values()) {
-                if (proivder.contains(flavor.token) || dataSourceInfo.contains(flavor.token)) {
-                    return flavor;
-                }
-            }
-            throw new AssertionError("Can't determine the backend vendor. (" + dataSourceInfo + ")");
-     }
-
-    
-//  /**
-//  * Validates the current query structure. If a hierarchy axis has
-//  * been placed on an axis but no selections were performed on it,
-//  * the default hierarchy and default member will be selected. This
-//  * can be turned off by invoking the
-//  * {@link Query#setSelectDefaultMembers(boolean)} method.
-//  * @throws OlapException If the query is not valid, an exception
-//  * will be thrown and it's message will describe exactly what to fix.
-//  */
-// public void validate() throws OlapException {
-//     try {
-//         // First, perform default selections if needed.
-//         if (this.selectDefaultMembers) {
-//             // Perform default selection on the hierarchys on the rows axis.
-//             for (QueryHierarchy hierarchy : this.getAxis(Axis.ROWS)
-//                 .getQueryHierarchies())
-//             {
-//                 if (hierarchy.getInclusions().size() == 0) {
-//                     Member defaultMember = hierarchy.gethierarchy()
-//                         .getDefaultHierarchy().getDefaultMember();
-//                     hierarchy.include(defaultMember);
-//                 }
-//             }
-//             // Perform default selection on the
-//             // hierarchys on the columns axis.
-//             for (QueryHierarchy hierarchy : this.getAxis(Axis.COLUMNS)
-//                 .getQueryHierarchies())
-//             {
-//                 if (hierarchy.getInclusions().size() == 0) {
-//                     Member defaultMember = hierarchy.gethierarchy()
-//                         .getDefaultHierarchy().getDefaultMember();
-//                     hierarchy.include(defaultMember);
-//                 }
-//             }
-//             // Perform default selection on the hierarchys
-//             // on the filter axis.
-//             for (QueryHierarchy hierarchy : this.getAxis(Axis.FILTER)
-//                 .getQueryHierarchies())
-//             {
-//                 if (hierarchy.getInclusions().size() == 0) {
-//                     Member defaultMember = hierarchy.gethierarchy()
-//                         .getDefaultHierarchy().getDefaultMember();
-//                     hierarchy.include(defaultMember);
-//                 }
-//             }
-//         }
-//
-//         // We at least need a hierarchy on the columns axis.
-//         if (this.getAxis(Axis.COLUMNS).getQueryHierarchies().size() == 0) {
-//             throw new OlapException(
-//                 "A valid Query requires at least one hierarchy on the columns axis.");
-//         }
-//
-//         // Try to build a select tree.
-//         this.getSelect();
-//     } catch (Exception e) {
-//         throw new OlapException("Query validation failed.", e);
-//     }
-// }
+    }
 }
-
-// End Query.java

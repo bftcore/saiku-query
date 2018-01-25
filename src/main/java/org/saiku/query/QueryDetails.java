@@ -15,79 +15,78 @@
  */
 package org.saiku.query;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.olap4j.Axis;
 import org.olap4j.impl.Named;
 import org.olap4j.metadata.Measure;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class QueryDetails implements Named {
+  protected List<Measure> measures = new ArrayList();
+  private QueryDetails.Location location;
+  private Axis axis;
+  private Query query;
 
-	protected List<Measure> measures = new ArrayList<Measure>();
-	
-	private Location location = Location.BOTTOM;
-	
-	private Axis axis;
+  public QueryDetails(Query query, Axis axis) {
+    this.location = QueryDetails.Location.BOTTOM;
+    this.axis = axis;
+    this.query = query;
+  }
 
-	private Query query;
-	
-	public enum Location {
-		TOP,
-		BOTTOM
-	}
-	
-	public QueryDetails(Query query, Axis axis) {
-		this.axis = axis;
-		this.query = query;
-	}
-	
-	public void add(Measure measure) {
-		if (!measures.contains(measure)) {
-			measures.add(measure);
-		}
-	}
-	
-	public void set(Measure measure, int position) {
-		if (!measures.contains(measure)) {
-			measures.add(position, measure);
-		} else {
-			int oldindex = measures.indexOf(measure);
-			if (oldindex <= position) {
-				measures.add(position, measure);
-				measures.remove(oldindex);
-			}
-		}
-	}
-	
-	public void remove(Measure measure) {
-		measures.remove(measure);
-	}
-	
-	
-	public List<Measure> getMeasures() {
-		return measures;
-	}
-	
-	public Location getLocation() {
-		return location;
-	}
+  public void add(Measure measure) {
+    if(!this.measures.contains(measure)) {
+      this.measures.add(measure);
+    }
 
-	public void setLocation(Location location) {
-		this.location = location;
-	}
-	
-	public Axis getAxis() {
-		return axis;
-	}
-	
-	public void setAxis(Axis axis) {
-		this.axis = axis;
-	}
+  }
 
-	@Override
-	public String getName() {
-		return "DETAILS";
-	}
+  public void set(Measure measure, int position) {
+    if(!this.measures.contains(measure)) {
+      this.measures.add(position, measure);
+    } else {
+      int oldindex = this.measures.indexOf(measure);
+      if(oldindex <= position) {
+	this.measures.add(position, measure);
+	this.measures.remove(oldindex);
+      }
+    }
 
+  }
+
+  public void remove(Measure measure) {
+    this.measures.remove(measure);
+  }
+
+  public List<Measure> getMeasures() {
+    return this.measures;
+  }
+
+  public QueryDetails.Location getLocation() {
+    return this.location;
+  }
+
+  public void setLocation(QueryDetails.Location location) {
+    this.location = location;
+  }
+
+  public Axis getAxis() {
+    return this.axis;
+  }
+
+  public void setAxis(Axis axis) {
+    this.axis = axis;
+  }
+
+  public String getName() {
+    return "DETAILS";
+  }
+
+  public static enum Location {
+    TOP,
+    BOTTOM;
+
+    private Location() {
+    }
+  }
 }

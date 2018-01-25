@@ -15,123 +15,78 @@
  */
 package org.saiku.query;
 
-import java.util.List;
-
 import org.olap4j.Axis;
 import org.olap4j.impl.NamedListImpl;
 import org.olap4j.metadata.NamedList;
 
-public class QueryAxis extends AbstractSortableQuerySet {
+import java.util.List;
+import java.util.Locale;
 
-    protected final NamedList<QueryHierarchy> hierarchies = new NamedListImpl<QueryHierarchy>();
-    
+public class QueryAxis extends AbstractSortableQuerySet {
+    protected final NamedList<QueryHierarchy> hierarchies = new NamedListImpl();
     private final Query query;
     protected Axis location = null;
     private boolean nonEmpty;
-    
+
     public QueryAxis(Query query, Axis location) {
-        super();
         this.query = query;
         this.location = location;
     }
 
     public Axis getLocation() {
-        return location;
+        return this.location;
     }
 
-    /**
-     * Returns whether this Query Group filters out empty rows.
-     * If true, axis filters out empty rows, and the MDX to evaluate the axis
-     * will be generated with the "NON EMPTY" expression.
-     * Other Query Elements will use Filter( Not IsEmpty (<query group set>), <measure>)
-     *
-     * @return Whether this query group should filter out empty rows
-     *
-     * @see #setNonEmpty(boolean)
-     */
     public boolean isNonEmpty() {
-    	return nonEmpty;
+        return this.nonEmpty;
     }
 
-    /**
-     * Sets whether this Query Group filters out empty rows.
-     *
-     * @param nonEmpty Whether this axis should filter out empty rows
-     *
-     * @see #isNonEmpty()
-     */
     public void setNonEmpty(boolean nonEmpty) {
-    	this.nonEmpty = nonEmpty;
+        this.nonEmpty = nonEmpty;
     }
 
     public String getName() {
-        return location.getCaption(null);
+        return this.location.getCaption((Locale)null);
     }
-    
-    /**
-     * Returns the Query object belonging to this QueryAxis
-     * 
-     * @return the query object
-     */
+
     public Query getQuery() {
-    	return query;
+        return this.query;
     }
-    
+
     public boolean isLowestLevelsOnly() {
-    	return (query.isLowestLevelsOnly() | Axis.FILTER.equals(location));
+        return this.query.isLowestLevelsOnly() | Axis.FILTER.equals(this.location);
     }
 
-	public List<QueryHierarchy> getQueryHierarchies() {
-		return hierarchies;
-	}
-	
-    /**
-     * Places a {@link QueryHierarchy} object on this axis.
-     * @param hierarchy The {@link QueryHierarchy} object to add
-     * to this axis.
-     */
+    public List<QueryHierarchy> getQueryHierarchies() {
+        return this.hierarchies;
+    }
+
     public void addHierarchy(QueryHierarchy hierarchy) {
-    	addHierarchy(-1, hierarchy);
+        this.addHierarchy(-1, hierarchy);
     }
 
-    /**
-     * Places a {@link QueryHierarchy} object on this axis at
-     * a specific index.
-     * @param hierarchy The {@link QueryHierarchy} object to add
-     * to this axis.
-     * @param index The position (0 based) onto which to place
-     * the QueryHierarchy
-     */
     public void addHierarchy(int index, QueryHierarchy hierarchy) {
-        if (this.getQueryHierarchies().contains(hierarchy)) {
-            throw new IllegalStateException(
-                "hierarchy already on this axis");
-        }
-        if (hierarchy.getAxis() != null
-            && hierarchy.getAxis() != QueryAxis.this)
-        {
-            // careful! potential for loop
-        	hierarchy.getAxis().getQueryHierarchies().remove(hierarchy);
-        }
-        hierarchy.setAxis(QueryAxis.this);
-        if (index >= hierarchies.size() || index < 0) {
-        	hierarchies.add(hierarchy);
+        if(this.getQueryHierarchies().contains(hierarchy)) {
+            throw new IllegalStateException("hierarchy already on this axis");
         } else {
-        	hierarchies.add(index, hierarchy);
+            if(hierarchy.getAxis() != null && hierarchy.getAxis() != this) {
+                hierarchy.getAxis().getQueryHierarchies().remove(hierarchy);
+            }
+
+            hierarchy.setAxis(this);
+            if(index < this.hierarchies.size() && index >= 0) {
+                this.hierarchies.add(index, hierarchy);
+            } else {
+                this.hierarchies.add(hierarchy);
+            }
+
         }
     }
 
-
-    /**
-     * Removes a {@link QueryHierarchy} object on this axis.
-     * @param hierarchy The {@link QueryHierarchy} object to remove
-     * from this axis.
-     */
     public void removeHierarchy(QueryHierarchy hierarchy) {
-    	hierarchy.setAxis(null);
+        hierarchy.setAxis((QueryAxis)null);
         this.getQueryHierarchies().remove(hierarchy);
     }
-
 }
 
 

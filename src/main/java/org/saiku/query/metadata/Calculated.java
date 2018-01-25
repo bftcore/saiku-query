@@ -18,13 +18,11 @@ package org.saiku.query.metadata;
 import java.util.Map;
 
 public interface Calculated {
+  String getFormula();
 
-	public String getFormula();
+  Map<String, String> getFormatProperties();
 
-	public Map<String, String> getFormatProperties();
+  String getUniqueName();
 
-	public String getUniqueName();
-
-	public int getSolveOrder();
-
+  int getSolveOrder();
 }

@@ -15,12 +15,6 @@
  */
 package org.saiku.query.metadata;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import mondrian.olap.CellProperty;
-
 import org.olap4j.OlapException;
 import org.olap4j.impl.Named;
 import org.olap4j.impl.NamedListImpl;
@@ -34,298 +28,199 @@ import org.olap4j.metadata.Measure;
 import org.olap4j.metadata.Member;
 import org.olap4j.metadata.NamedList;
 import org.olap4j.metadata.Property;
-import org.olap4j.metadata.Property.StandardCellProperty;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class CalculatedMeasure implements Measure, Named, Calculated {
+  private Dimension dimension;
+  private Hierarchy hierarchy;
+  private String name;
+  private String uniqueName;
+  private String formula;
+  private Map<String, String> properties = new HashMap();
+  private String description;
+  private Level level;
+  private Datatype datatype;
 
+  public CalculatedMeasure(Hierarchy hierarchy, String name, String description, String formula, Map<String, String> properties) {
+    this.dimension = hierarchy.getDimension();
+    this.hierarchy = hierarchy;
+    this.level = (Level)hierarchy.getLevels().get(0);
+    this.name = name;
+    this.description = description;
+    this.formula = formula;
+    this.uniqueName = IdentifierNode.ofNames(new String[]{hierarchy.getName(), name}).toString();
+    if(properties != null) {
+      this.properties.putAll(properties);
+    }
 
-	private Dimension dimension;
-	private Hierarchy hierarchy;
-	private String name;
-	private String uniqueName;
-	private String formula;
-	
-	private Map<String, String> properties = new HashMap<String, String>();
-	private String description;
-	private Level level;
-	private Datatype datatype;
+  }
 
+  public Dimension getDimension() {
+    return this.dimension;
+  }
 
-	public CalculatedMeasure(
-			Hierarchy hierarchy,
-			String name,
-			String description,
-			String formula,
-			Map<String, String> properties)
-	{
-		this.dimension = hierarchy.getDimension();
-		this.hierarchy = hierarchy;
-		this.level = hierarchy.getLevels().get(0);
-		this.name = name;
-		this.description = description;
-		this.formula = formula;
-		this.uniqueName = IdentifierNode.ofNames(hierarchy.getName(), name).toString();
-		if (properties != null) {
-			this.properties.putAll(properties);
-		}
+  public Hierarchy getHierarchy() {
+    return this.hierarchy;
+  }
+
+  public String getFormula() {
+    return this.formula;
+  }
+
+  public Type getMemberType() {
+    return Type.FORMULA;
+  }
+
+  public Map<String, String> getFormatProperties() {
+    return this.properties;
+  }
+
+  public String getFormatPropertyValue(String key) throws OlapException {
+    return this.properties.containsKey(key)?(String)this.properties.get(key):null;
+  }
+
+  public void setFormatProperty(String key, String value) throws OlapException {
+    this.properties.put(key, value);
+  }
+
+  public String getCaption() {
+    return this.name;
+  }
+
+  public String getDescription() {
+    return this.description;
+  }
+
+  public String getName() {
+    return this.name;
+  }
+
+  public String getUniqueName() {
+    return this.uniqueName;
+  }
+
+  public Aggregator getAggregator() {
+    return Aggregator.CALCULATED;
+  }
+
+  public boolean isVisible() {
+    return true;
+  }
+
+  public List<Member> getAncestorMembers() {
+    throw new UnsupportedOperationException();
+  }
+
+  public int getChildMemberCount() throws OlapException {
+    throw new UnsupportedOperationException();
+  }
+
+  public NamedList<? extends Member> getChildMembers() throws OlapException {
+    throw new UnsupportedOperationException();
+  }
+
+  public Member getDataMember() {
+    throw new UnsupportedOperationException();
+  }
+
+  public int getDepth() {
+    throw new UnsupportedOperationException();
+  }
+
+  public ParseTreeNode getExpression() {
+    throw new UnsupportedOperationException();
+  }
+
+  public Level getLevel() {
+    return this.level;
+  }
+
+  public int getOrdinal() {
+    throw new UnsupportedOperationException();
+  }
+
+  public Member getParentMember() {
+    throw new UnsupportedOperationException();
+  }
+
+  public String getPropertyFormattedValue(Property property) throws OlapException {
+    return String.valueOf(this.getPropertyValue(property));
+  }
+
+  public int getSolveOrder() {
+    throw new UnsupportedOperationException();
+  }
+
+  public boolean isAll() {
+    return false;
+  }
+
+  public boolean isCalculated() {
+    return true;
+  }
+
+  public boolean isCalculatedInQuery() {
+    return true;
+  }
+
+  public boolean isChildOrEqualTo(Member arg0) {
+    return false;
+  }
+
+  public boolean isHidden() {
+    return false;
+  }
+
+  public Datatype getDatatype() {
+    return this.datatype != null?this.datatype:Datatype.STRING;
+  }
+
+  public int hashCode() {
+    boolean prime = true;
+    byte result = 1;
+    int result1 = 31 * result + (this.uniqueName == null?0:this.uniqueName.hashCode());
+    return result1;
+  }
+
+  public boolean equals(Object obj) {
+    if(this == obj) {
+      return true;
+    } else if(obj == null) {
+      return false;
+    } else if(this.getClass() != obj.getClass()) {
+      return false;
+    } else {
+      CalculatedMeasure other = (CalculatedMeasure)obj;
+      if(this.uniqueName == null) {
+	if(other.uniqueName != null) {
+	  return false;
 	}
-	
-
-
-	public Dimension getDimension() {
-		return dimension;
-	}
-
-
-	public Hierarchy getHierarchy() {
-		return hierarchy;
-	}
-	
-	public String getFormula() {
-		return formula;
-	}
-
-	public Type getMemberType() {
-		return Type.FORMULA;
-	}
-
-
-	public Map<String, String> getFormatProperties() {
-		return properties;
-	}
-	
-	public String getFormatPropertyValue(String key) throws OlapException {
-		if (properties.containsKey(key)) {
-			return properties.get(key);
-		}
-		return null;
-	}
-
-	public void setFormatProperty(String key, String value) throws OlapException {
-		properties.put(key, value);
-	}
-
-
-	public String getCaption() {
-		return name;
-	}
-
-
-	public String getDescription() {
-		return description;
-	}
-
-
-	public String getName() {
-		return name;
-	}
-
-
-	public String getUniqueName() {
-		return uniqueName;
-	}
-
-
-	public Aggregator getAggregator() {
-		return Aggregator.CALCULATED;
-	}
-
-
-	public boolean isVisible() {
-		return true;
-	}
-
-
-
-	@Override
-	public List<Member> getAncestorMembers() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public int getChildMemberCount() throws OlapException {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public NamedList<? extends Member> getChildMembers() throws OlapException {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public Member getDataMember() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public int getDepth() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public ParseTreeNode getExpression() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public Level getLevel() {
-		return level;
-	}
-
-
-
-	@Override
-	public int getOrdinal() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public Member getParentMember() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public String getPropertyFormattedValue(Property property) throws OlapException {
-		return String.valueOf(getPropertyValue(property));
-	}
-
-
-
-	@Override
-	public int getSolveOrder() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public boolean isAll() {
-		return false;
-	}
-
-
-
-	@Override
-	public boolean isCalculated() {
-		return true;
-	}
-
-
-
-	@Override
-	public boolean isCalculatedInQuery() {
-		return true;
-	}
-
-
-
-	@Override
-	public boolean isChildOrEqualTo(Member arg0) {
-		return false;
-	}
-
-
-
-	@Override
-	public boolean isHidden() {
-		return false;
-	}
-
-
-
-	@Override
-	public Datatype getDatatype() {
-	        if (datatype  != null) {
-	        	return datatype;
-	        }
-	        return Datatype.STRING;
-	}
-
-
-
-	/* (non-Javadoc)
-	 * @see java.lang.Object#hashCode()
-	 */
-	@Override
-	public int hashCode() {
-		final int prime = 31;
-		int result = 1;
-		result = prime * result
-				+ ((uniqueName == null) ? 0 : uniqueName.hashCode());
-		return result;
-	}
-
-
-
-	/* (non-Javadoc)
-	 * @see java.lang.Object#equals(java.lang.Object)
-	 */
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		CalculatedMeasure other = (CalculatedMeasure) obj;
-		if (uniqueName == null) {
-			if (other.uniqueName != null)
-				return false;
-		} else if (!uniqueName.equals(other.uniqueName))
-			return false;
-		return true;
-	}
-
-
-
-	/**
-	 * DO NOT USE THIS - just dummy
-	 */
-	@Deprecated
-	public NamedList<Property> getProperties() {
-		NamedList<Property> l = new NamedListImpl();
-		return l;
-	}
-
-
-
-	/**
-	 * DO NOT USE THIS
-	 */
-	@Deprecated
-	public Object getPropertyValue(Property p) throws OlapException {
-		if (properties.containsKey(p.getName())) {
-			return properties.get(p.getName());
-		}
-		return null;
-	}
-
-
-
-	/**
-	 * DO NOT USE THIS
-	 */
-	@Deprecated
-	public void setProperty(Property arg0, Object arg1) throws OlapException {
-		// TODO Auto-generated method stub
-		
-	}
-
+      } else if(!this.uniqueName.equals(other.uniqueName)) {
+	return false;
+      }
+
+      return true;
+    }
+  }
+
+  /** @deprecated */
+  @Deprecated
+  public NamedList<Property> getProperties() {
+    NamedListImpl l = new NamedListImpl();
+    return l;
+  }
+
+  /** @deprecated */
+  @Deprecated
+  public Object getPropertyValue(Property p) throws OlapException {
+    return this.properties.containsKey(p.getName())?this.properties.get(p.getName()):null;
+  }
+
+  /** @deprecated */
+  @Deprecated
+  public void setProperty(Property arg0, Object arg1) throws OlapException {
+  }
 }

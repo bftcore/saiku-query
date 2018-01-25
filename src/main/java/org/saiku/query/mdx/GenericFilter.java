@@ -15,36 +15,33 @@
  */
 package org.saiku.query.mdx;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.olap4j.mdx.ParseTreeNode;
 import org.olap4j.mdx.parser.MdxParser;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class GenericFilter extends AbstractFilterFunction {
+  private String filterExpression;
+  private MdxFunctionType type;
 
-	private String filterExpression;
-	private MdxFunctionType type;
+  public GenericFilter(String filterExpression) {
+    this.filterExpression = filterExpression;
+    this.type = MdxFunctionType.Filter;
+  }
 
-	public GenericFilter(String filterExpression) {
-		this.filterExpression = filterExpression;
-		this.type = MdxFunctionType.Filter;
-	}
-	
-	public String getFilterExpression() {
-		return filterExpression;
-	}
+  public String getFilterExpression() {
+    return this.filterExpression;
+  }
 
-	@Override
-	public List<ParseTreeNode> getArguments(MdxParser parser) {
-		List<ParseTreeNode> arguments = new ArrayList<ParseTreeNode>();
-		ParseTreeNode filterExp =  parser.parseExpression(filterExpression);		
-		arguments.add(filterExp);
-		return arguments;
-	}
+  public List<ParseTreeNode> getArguments(MdxParser parser) {
+    ArrayList arguments = new ArrayList();
+    ParseTreeNode filterExp = parser.parseExpression(this.filterExpression);
+    arguments.add(filterExp);
+    return arguments;
+  }
 
-	@Override
-	public MdxFunctionType getFunctionType() {
-		return type;
-	}
+  public MdxFunctionType getFunctionType() {
+    return this.type;
+  }
 }

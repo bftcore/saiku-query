@@ -15,19 +15,21 @@
  */
 package org.saiku.query.mdx;
 
-import java.util.List;
-
 import org.olap4j.mdx.CallNode;
+import org.olap4j.mdx.ParseRegion;
 import org.olap4j.mdx.ParseTreeNode;
 import org.olap4j.mdx.Syntax;
 import org.olap4j.mdx.parser.MdxParser;
 
-public abstract class AbstractFilterFunction implements IFilterFunction {
+import java.util.List;
 
-	@Override
-	public ParseTreeNode visit(MdxParser parser, ParseTreeNode parent) {
-		List<ParseTreeNode> arguments = getArguments(parser);
-		arguments.add(0, parent);		
-		return new CallNode(null, getFunctionType().toString(), Syntax.Function, arguments);
-	}
+public abstract class AbstractFilterFunction implements IFilterFunction {
+  public AbstractFilterFunction() {
+  }
+
+  public ParseTreeNode visit(MdxParser parser, ParseTreeNode parent) {
+    List arguments = this.getArguments(parser);
+    arguments.add(0, parent);
+    return new CallNode((ParseRegion) null, this.getFunctionType().toString(), Syntax.Function, arguments);
+  }
 }

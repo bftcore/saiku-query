@@ -15,101 +15,97 @@
  */
 package org.saiku.query.mdx;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import org.olap4j.mdx.CallNode;
 import org.olap4j.mdx.HierarchyNode;
 import org.olap4j.mdx.LiteralNode;
+import org.olap4j.mdx.ParseRegion;
 import org.olap4j.mdx.ParseTreeNode;
 import org.olap4j.mdx.Syntax;
 import org.olap4j.mdx.parser.MdxParser;
 import org.olap4j.metadata.Hierarchy;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 public class NameFilter extends AbstractFilterFunction {
+  private String operator = " = ";
+  private String op;
+  private List<String> filterExpression = new ArrayList();
+  private MdxFunctionType type;
+  private Hierarchy hierarchy;
 
-	private List<String> filterExpression = new ArrayList<String>();
-	private MdxFunctionType type;
-	private Hierarchy hierarchy;
+  public NameFilter(Hierarchy hierarchy, String... matchingExpression) {
+    List expressions = Arrays.asList(matchingExpression);
+    this.filterExpression.addAll(expressions);
+    this.hierarchy = hierarchy;
+    this.type = MdxFunctionType.Filter;
+  }
 
-	public NameFilter(Hierarchy hierarchy, String... matchingExpression) {
-		List<String> expressions = Arrays.asList(matchingExpression);
-		this.filterExpression.addAll(expressions);
-		this.hierarchy = hierarchy;
-		this.type = MdxFunctionType.Filter;
-	}
-	
-	public NameFilter(Hierarchy hierarchy, List<String> matchingExpression) {
-		this.hierarchy = hierarchy;
-		this.filterExpression.addAll(matchingExpression);
-		this.type = MdxFunctionType.Filter;
-	}
+  public NameFilter(Hierarchy hierarchy, List<String> matchingExpression) {
+    this.hierarchy = hierarchy;
+    this.filterExpression.addAll(matchingExpression);
+    this.type = MdxFunctionType.Filter;
+  }
 
-	@Override
-	public List<ParseTreeNode> getArguments(MdxParser parser) {
-		List<ParseTreeNode> filters = new ArrayList<ParseTreeNode>();
-		List<ParseTreeNode> arguments = new ArrayList<ParseTreeNode>();
-		ParseTreeNode h =  new HierarchyNode(null, hierarchy);
-		for (String filter : filterExpression) {
-			ParseTreeNode filterExp =  LiteralNode.createString(null, filter);
-			CallNode currentMemberNode =
-					new CallNode(
-							null,
-							"CurrentMember",
-							Syntax.Property,
-							h);
-			CallNode currentMemberNameNode =
-					new CallNode(
-							null,
-							"Name",
-							Syntax.Property,
-							currentMemberNode);
+  public NameFilter(Hierarchy hierarchy, List<String> matchingExpression, String operator) {
+    this.hierarchy = hierarchy;
+    this.filterExpression.addAll(matchingExpression);
+    this.type = MdxFunctionType.Filter;
+    this.op = operator;
+    if(operator != null && operator.equals("NOTEQUAL")) {
+      this.operator = " <> ";
+    }
 
-			CallNode filterNode = 
-					new CallNode(
-							null,
-							" = ",
-							Syntax.Infix,
-							currentMemberNameNode,
-							filterExp);
-			
-			filters.add(filterNode);			
-		}
-		if (filters.size() == 1) {
-			arguments.addAll(filters);
-		} else if (filters.size() > 1) {
-			ParseTreeNode allfilter = filters.get(0);
-			for (int i = 1; i< filters.size(); i++) {
-				allfilter = 
-						new CallNode(
-								null,
-								" OR ",
-								Syntax.Infix,
-								allfilter,
-								filters.get(i));
-			}
-			arguments.add(allfilter);
-		}
-		return arguments;
-	}
+  }
 
-	@Override
-	public MdxFunctionType getFunctionType() {
-		return type;
-	}
+  public List<ParseTreeNode> getArguments(MdxParser parser) {
+    ArrayList filters = new ArrayList();
+    ArrayList arguments = new ArrayList();
+    HierarchyNode h = new HierarchyNode((ParseRegion)null, this.hierarchy);
 
-	/**
-	 * @return the filterExpression
-	 */
-	public List<String> getFilterExpression() {
-		return filterExpression;
-	}
+    for(int allfilter = 0; allfilter < this.filterExpression.size(); ++allfilter) {
+      String i = (String)this.filterExpression.get(allfilter);
+      String o = this.operator;
+      if(this.filterExpression.size() > 1 && allfilter == 0) {
+	o = " = ";
+      }
 
-	/**
-	 * @return the hierarchy
-	 */
-	public Hierarchy getHierarchy() {
-		return hierarchy;
-	}
+      LiteralNode filterExp = LiteralNode.createString((ParseRegion)null, i);
+      CallNode currentMemberNode = new CallNode((ParseRegion)null, "CurrentMember", Syntax.Property, new ParseTreeNode[]{h});
+      CallNode currentMemberNameNode = new CallNode((ParseRegion)null, "Name", Syntax.Property, new ParseTreeNode[]{currentMemberNode});
+      CallNode filterNode = new CallNode((ParseRegion)null, o, Syntax.Infix, new ParseTreeNode[]{currentMemberNameNode, filterExp});
+      filters.add(filterNode);
+    }
+
+    if(filters.size() == 1) {
+      arguments.addAll(filters);
+    } else if(filters.size() > 1) {
+      Object var12 = (ParseTreeNode)filters.get(0);
+
+      for(int var13 = 1; var13 < filters.size(); ++var13) {
+	var12 = new CallNode((ParseRegion)null, " OR ", Syntax.Infix, new ParseTreeNode[]{(ParseTreeNode)var12, (ParseTreeNode)filters.get(var13)});
+      }
+
+      arguments.add(var12);
+    }
+
+    return arguments;
+  }
+
+  public MdxFunctionType getFunctionType() {
+    return this.type;
+  }
+
+  public List<String> getFilterExpression() {
+    return this.filterExpression;
+  }
+
+  public Hierarchy getHierarchy() {
+    return this.hierarchy;
+  }
+
+  public String getOp() {
+    return this.op;
+  }
 }

@@ -15,9 +15,6 @@
  */
 package org.saiku.query;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.commons.lang.StringUtils;
 import org.olap4j.impl.Named;
 import org.olap4j.metadata.Level;
@@ -25,221 +22,204 @@ import org.olap4j.metadata.Level.Type;
 import org.olap4j.metadata.Member;
 import org.saiku.query.Parameter.SelectionType;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class QueryLevel extends AbstractQuerySet implements Named {
-    private final QueryHierarchy hierarchy;
-	private final Level level;
-	
-	private List<Member> inclusions = new ArrayList<Member>();
-	private List<Member> exclusions = new ArrayList<Member>();
-	private Member rangeStart = null;
-	private Member rangeEnd = null;
-	private String rangeStartExpr = null;
-	private String rangeEndExpr = null;
-	private String rangeStartSyn;
-	private String rangeEndSyn;
-	private String parameterName = null;
-	private SelectionType parameterSelectionType = Parameter.SelectionType.INCLUSION;
-	
-    public QueryLevel(QueryHierarchy hierarchy, Level level) {
-        super();
-        this.hierarchy = hierarchy;
-        this.level = level;
+  private final QueryHierarchy hierarchy;
+  private final Level level;
+  private List<Member> inclusions = new ArrayList();
+  private List<Member> exclusions = new ArrayList();
+  private Member rangeStart = null;
+  private Member rangeEnd = null;
+  private String rangeStartExpr = null;
+  private String rangeEndExpr = null;
+  private String rangeStartSyn;
+  private String rangeEndSyn;
+  private String parameterName = null;
+  private SelectionType parameterSelectionType;
+
+  public QueryLevel(QueryHierarchy hierarchy, Level level) {
+    this.parameterSelectionType = SelectionType.INCLUSION;
+    this.hierarchy = hierarchy;
+    this.level = level;
+  }
+
+  public QueryHierarchy getQueryHierarchy() {
+    return this.hierarchy;
+  }
+
+  public String getName() {
+    return this.level.getName();
+  }
+
+  public String getUniqueName() {
+    return this.level.getUniqueName();
+  }
+
+  public String getCaption() {
+    return this.level.getCaption();
+  }
+
+  public boolean isSimple() {
+    return super.isSimple() && (this.level.getLevelType().equals(Type.ALL) || this.inclusions.isEmpty() && this.exclusions.isEmpty() && this.rangeStart == null && this.rangeEnd == null && this.rangeStartExpr == null && this.rangeEndExpr == null) && (!this.hasParameter() || this.hierarchy.getQuery().getParameter(this.getParameterName()) == null);
+  }
+
+  public boolean isRange() {
+    return this.rangeStart != null && this.rangeEnd != null || this.rangeStartExpr != null || this.rangeEndExpr != null;
+  }
+
+  public Level getLevel() {
+    return this.level;
+  }
+
+  public List<Member> getInclusions() {
+    return this.inclusions;
+  }
+
+  public List<Member> getExclusions() {
+    return this.exclusions;
+  }
+
+  public Member getRangeStart() {
+    return this.rangeStart;
+  }
+
+  public Member getRangeEnd() {
+    return this.rangeEnd;
+  }
+
+  public String getRangeStartExpr() {
+    return this.rangeStartExpr;
+  }
+
+  public String getRangeEndExpr() {
+    return this.rangeEndExpr;
+  }
+
+  public String getRangeStartSyn() {
+    return this.rangeStartSyn;
+  }
+
+  public String getRangeEndSyn() {
+    return this.rangeEndSyn;
+  }
+
+  protected void clearSelections() {
+    this.inclusions.clear();
+    this.exclusions.clear();
+    this.rangeStart = null;
+    this.rangeStartExpr = null;
+    this.rangeStartSyn = null;
+    this.rangeEnd = null;
+    this.rangeEndExpr = null;
+    this.rangeEndSyn = null;
+  }
+
+  protected void include(Member m) {
+    if(!this.inclusions.contains(m)) {
+      this.inclusions.add(m);
     }
 
-    public QueryHierarchy getQueryHierarchy() {
-        return hierarchy;
+  }
+
+  protected void exclude(Member m) {
+    if(this.inclusions.contains(m)) {
+      this.inclusions.remove(m);
     }
 
-    public String getName() {
-        return level.getName();
-    }
-    
-    public String getUniqueName() {
-    	return level.getUniqueName();
-    }
-    
-    public String getCaption() {
-    	return level.getCaption();
+    if(!this.exclusions.contains(m)) {
+      this.exclusions.add(m);
     }
 
-    
-    @Override
-    public boolean isSimple() {
-    	return (super.isSimple() 
-    			&& (level.getLevelType().equals(Type.ALL) 
-    					|| (inclusions.isEmpty() && exclusions.isEmpty() && rangeStart == null && rangeEnd == null && rangeStartExpr == null && rangeEndExpr == null) )
-    			&& (!hasParameter() || hierarchy.getQuery().getParameter(getParameterName()) == null));
-    }
-    
-    public boolean isRange() {
-    	return ((rangeStart != null && rangeEnd != null) || (rangeStartExpr != null || rangeEndExpr != null));
-    }
+  }
 
-    /**
-     * Returns the underlying Level object onto which
-     * this query Level is based.
-     * <p>Returns a mutable object so operations on it have
-     * unpredictable consequences.
-     * @return The underlying  representation.
-     */
-    public Level getLevel() {
-        return level;
-    }
+  protected void setRange(Member start, Member end) {
+    this.rangeStart = start;
+    this.rangeEnd = end;
+  }
 
-    public List<Member> getInclusions() {
-    	return inclusions;
-    }
-    
-    public List<Member> getExclusions() {
-    	return exclusions;
-    }
-    
-	public Member getRangeStart() {
-		return rangeStart;
-	}
-	
-	public Member getRangeEnd() {
-		return rangeEnd;
-	}
-	
-	public String getRangeStartExpr() {
-		return rangeStartExpr;
-	}
-	
-	public String getRangeEndExpr() {
-		return rangeEndExpr;
-	}
-	
-	public String getRangeStartSyn() {
-		return rangeStartSyn;
-	}
-	
-	public String getRangeEndSyn() {
-		return rangeEndSyn;
-	}
-	
-	protected void clearSelections() {
-		this.inclusions.clear();
-		this.exclusions.clear();
-		this.rangeStart = null;
-		this.rangeStartExpr = null;
-		this.rangeStartSyn = null;
-		this.rangeEnd = null;
-		this.rangeEndExpr = null;
-		this.rangeEndSyn = null;
-	}
+  public void setRangeSynonyms(String startSynonym, String endSynonym) {
+    this.rangeStartSyn = startSynonym;
+    this.rangeEndSyn = endSynonym;
+  }
 
-    protected void include(Member m) {
-    	if(!inclusions.contains(m)) {
-    		inclusions.add(m);
-    	}
-    }
-    
-    protected void exclude(Member m) {
-    	if(inclusions.contains(m)) {
-    		inclusions.remove(m);
-    	}
-    	if(!exclusions.contains(m)) {
-    		exclusions.add(m);
-    	}
-    }
-    
-    protected void setRange(Member start, Member end) {
-    	rangeStart = start;
-    	rangeEnd = end;
-    }
-    
-    public void setRangeSynonyms(String startSynonym, String endSynonym) {
-    	rangeStartSyn = startSynonym;
-    	rangeEndSyn = endSynonym;
-    }
-    
-    public void setRangeStartSynonym(String startSyn) {
-    	rangeStartSyn = startSyn;
-    }
-    public void setRangeEndSynonym(String endSyn) {
-    	rangeEndSyn = endSyn;
-    }
+  public void setRangeStartSynonym(String startSyn) {
+    this.rangeStartSyn = startSyn;
+  }
 
-    public void setRangeStartExpr(String startExp) {
-    	rangeStart = null;
-    	rangeStartExpr = startExp;
+  public void setRangeEndSynonym(String endSyn) {
+    this.rangeEndSyn = endSyn;
+  }
+
+  public void setRangeStartExpr(String startExp) {
+    this.rangeStart = null;
+    this.rangeStartExpr = startExp;
+  }
+
+  public void setRangeEndExpr(String endExp) {
+    this.rangeEnd = null;
+    this.rangeEndExpr = endExp;
+  }
+
+  public void setRangeExpressions(String startExpr, String endExpr) {
+    this.rangeStart = null;
+    this.rangeEnd = null;
+    this.rangeStartExpr = startExpr;
+    this.rangeEndExpr = endExpr;
+  }
+
+  public int hashCode() {
+    boolean prime = true;
+    int result = super.hashCode();
+    result = 31 * result + (this.level == null?0:this.level.getUniqueName().hashCode());
+    return result;
+  }
+
+  public boolean equals(Object obj) {
+    if(this == obj) {
+      return true;
+    } else if(!super.equals(obj)) {
+      return false;
+    } else if(this.getClass() != obj.getClass()) {
+      return false;
+    } else {
+      QueryLevel other = (QueryLevel)obj;
+      if(this.level == null) {
+	if(other.level != null) {
+	  return false;
+	}
+      } else if(!this.level.getUniqueName().equals(other.getLevel().getUniqueName())) {
+	return false;
+      }
+
+      return true;
     }
-    public void setRangeEndExpr(String endExp) {
-    	rangeEnd = null;
-    	rangeEndExpr = endExp;
-    }
+  }
 
-    public void setRangeExpressions(String startExpr, String endExpr) {
-    	rangeStart = null;
-    	rangeEnd = null;
-    	rangeStartExpr = startExpr;
-    	rangeEndExpr = endExpr;
-    }    
+  public String toString() {
+    return this.level.getUniqueName();
+  }
 
-    /* (non-Javadoc)
-	 * @see java.lang.Object#hashCode()
-	 */
-	@Override
-	public int hashCode() {
-		final int prime = 31;
-		int result = super.hashCode();
-		result = prime * result + ((level == null) ? 0 : level.getUniqueName().hashCode());
-		return result;
-	}
+  public void setParameterName(String parameter) {
+    this.parameterName = parameter;
+  }
 
-	/* (non-Javadoc)
-	 * @see java.lang.Object#equals(java.lang.Object)
-	 */
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (!super.equals(obj))
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		QueryLevel other = (QueryLevel) obj;
-		if (level == null) {
-			if (other.level != null)
-				return false;
-		} else if (!level.getUniqueName().equals(other.getLevel().getUniqueName()))
-			return false;
-		return true;
-	}
-	
-	@Override
-	public String toString() {
-		return level.getUniqueName();
-	}
+  public void setParameterSelectionType(SelectionType selectionType) {
+    this.parameterSelectionType = selectionType;
+  }
 
-	public void setParameterName(String parameter) {
-		this.parameterName  = parameter;
-		
-	}
+  public String getParameterName() {
+    return this.parameterName;
+  }
 
-	public void setParameterSelectionType(SelectionType selectionType) {
-		this.parameterSelectionType = selectionType;
-		
-	}
+  public SelectionType getParameterSelectionType() {
+    return this.parameterSelectionType;
+  }
 
-	/**
-	 * @return the parameterName
-	 */
-	public String getParameterName() {
-		return parameterName;
-	}
-
-	/**
-	 * @return the parameterSelectionType
-	 */
-	public SelectionType getParameterSelectionType() {
-		return parameterSelectionType;
-	}
-	
-	public boolean hasParameter() {
-		return (StringUtils.isNotBlank(parameterName));
-	}
+  public boolean hasParameter() {
+    return StringUtils.isNotBlank(this.parameterName);
+  }
 }
 
 

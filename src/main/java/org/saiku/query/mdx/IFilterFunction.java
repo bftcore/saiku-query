@@ -15,25 +15,28 @@
  */
 package org.saiku.query.mdx;
 
-import java.util.List;
-
 import org.olap4j.mdx.ParseTreeNode;
 import org.olap4j.mdx.parser.MdxParser;
 
+import java.util.List;
 
 public interface IFilterFunction {
-	
-	public MdxFunctionType getFunctionType();
-	public List<ParseTreeNode> getArguments(MdxParser parser);	
-	public ParseTreeNode visit(MdxParser parser, ParseTreeNode parent);
+  IFilterFunction.MdxFunctionType getFunctionType();
 
-	public enum MdxFunctionType {
-		Filter,
-		TopCount,
-		TopPercent,
-		TopSum,
-		BottomCount,
-		BottomPercent,
-		BottomSum;
-	}
+  List<ParseTreeNode> getArguments(MdxParser var1);
+
+  ParseTreeNode visit(MdxParser var1, ParseTreeNode var2);
+
+  enum MdxFunctionType {
+    Filter,
+    TopCount,
+    TopPercent,
+    TopSum,
+    BottomCount,
+    BottomPercent,
+    BottomSum;
+
+    MdxFunctionType() {
+    }
+  }
 }

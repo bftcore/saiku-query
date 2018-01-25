@@ -15,11 +15,6 @@
  */
 package org.saiku.query.metadata;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.olap4j.OlapException;
 import org.olap4j.impl.Named;
 import org.olap4j.impl.NamedListImpl;
@@ -34,315 +29,241 @@ import org.olap4j.metadata.Member;
 import org.olap4j.metadata.NamedList;
 import org.olap4j.metadata.Property;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
 public class CalculatedMember implements Member, Named, Calculated {
+  private final Member parentMember;
+  private Dimension dimension;
+  private Hierarchy hierarchy;
+  private String name;
+  private String uniqueName;
+  private Type memberType;
+  private String formula;
+  private Map<String, String> properties;
+  private String description;
+  private Level level;
 
+  public CalculatedMember(Dimension dimension, Hierarchy hierarchy, String name, String description, Member parentMember, Type memberType, String formula, Map<String, String> properties, String l, boolean mondrian3) {
+    this(dimension, hierarchy, name, description, parentMember, memberType, formula, properties, mondrian3);
+    if(l != null && !l.equals("")) {
+      Iterator i$ = hierarchy.getLevels().iterator();
 
-	private Dimension dimension;
-	private Hierarchy hierarchy;
-	private String name;
-	private String uniqueName;
-	private Type memberType;
-	private String formula;
-	
-	private Map<String, String> properties = new HashMap<String, String>();
-	private String description;
-	private Level level;
-
-
-	public CalculatedMember(
-			Dimension dimension,
-			Hierarchy hierarchy,
-			String name,
-			String description,
-			Member parentMember,
-			Type memberType,
-			String formula,
-			Map<String, String> properties)
-	{
-		this.dimension = dimension;
-		this.hierarchy = hierarchy;
-		this.level = hierarchy.getLevels().get(0);
-		this.name = name;
-		this.description = description;
-		this.memberType = memberType;
-		this.formula = formula;
-		if (parentMember == null) {
-			this.uniqueName = IdentifierNode.ofNames(hierarchy.getName(), name).toString();
-		} else {
-			IdentifierNode parent = IdentifierNode.parseIdentifier(parentMember.getUniqueName());
-			IdentifierNode cm = IdentifierNode.ofNames(name);
-			List<IdentifierSegment> segmentList = new ArrayList<IdentifierSegment>();
-			segmentList.addAll(parent.getSegmentList());
-			segmentList.addAll(cm.getSegmentList());
-	        StringBuilder buf = new StringBuilder();
-	        for (IdentifierSegment segment : segmentList) {
-	            if (buf.length() > 0) {
-	                buf.append('.');
-	            }
-	            buf.append(segment.toString());
-	        }
-	        this.uniqueName = buf.toString();
-
-		}
-		if (properties != null) {
-			this.properties.putAll(properties);
-		}
+      while(i$.hasNext()) {
+	Level level = (Level)i$.next();
+	if(level.getUniqueName().equals(l)) {
+	  this.level = level;
 	}
-	
+      }
+    } else {
+      this.level = (Level)hierarchy.getLevels().get(0);
+    }
 
+  }
 
-	public Dimension getDimension() {
-		return dimension;
+  public CalculatedMember(Dimension dimension, Hierarchy hierarchy, String name, String description, Member parentMember, Type memberType, String formula, Map<String, String> properties, boolean mondrian3) {
+    this.properties = new HashMap();
+    this.dimension = dimension;
+    this.hierarchy = hierarchy;
+    this.level = (Level)hierarchy.getLevels().get(0);
+    this.name = name;
+    this.description = description;
+    this.memberType = memberType;
+    this.formula = formula;
+    if(parentMember == null) {
+      if(mondrian3) {
+	this.uniqueName = IdentifierNode.ofNames(new String[]{hierarchy.getName(), name}).toString();
+      } else {
+	this.uniqueName = IdentifierNode.ofNames(new String[]{hierarchy.getDimension().getName(), hierarchy.getName(), name}).toString();
+      }
+    } else {
+      IdentifierNode parent = IdentifierNode.parseIdentifier(parentMember.getUniqueName());
+      IdentifierNode cm = IdentifierNode.ofNames(new String[]{name});
+      ArrayList segmentList = new ArrayList();
+      segmentList.addAll(parent.getSegmentList());
+      segmentList.addAll(cm.getSegmentList());
+      StringBuilder buf = new StringBuilder();
+
+      IdentifierSegment segment;
+      for(Iterator i$ = segmentList.iterator(); i$.hasNext(); buf.append(segment.toString())) {
+	segment = (IdentifierSegment)i$.next();
+	if(buf.length() > 0) {
+	  buf.append('.');
 	}
+      }
 
+      this.uniqueName = buf.toString();
+    }
 
-	public Hierarchy getHierarchy() {
-		return hierarchy;
+    this.parentMember = parentMember;
+    if(properties != null) {
+      this.properties.putAll(properties);
+    }
+
+  }
+
+  public Dimension getDimension() {
+    return this.dimension;
+  }
+
+  public Hierarchy getHierarchy() {
+    return this.hierarchy;
+  }
+
+  public String getFormula() {
+    return this.formula;
+  }
+
+  public Type getMemberType() {
+    return this.memberType;
+  }
+
+  public Map<String, String> getFormatProperties() {
+    return this.properties;
+  }
+
+  public String getFormatPropertyValue(String key) throws OlapException {
+    return this.properties.containsKey(key)?(String)this.properties.get(key):null;
+  }
+
+  public void setFormatProperty(String key, String value) throws OlapException {
+    this.properties.put(key, value);
+  }
+
+  public String getCaption() {
+    return this.name;
+  }
+
+  public String getDescription() {
+    return this.description;
+  }
+
+  public String getName() {
+    return this.name;
+  }
+
+  public String getUniqueName() {
+    return this.uniqueName;
+  }
+
+  public Aggregator getAggregator() {
+    return Aggregator.CALCULATED;
+  }
+
+  public boolean isVisible() {
+    return true;
+  }
+
+  public List<Member> getAncestorMembers() {
+    throw new UnsupportedOperationException();
+  }
+
+  public int getChildMemberCount() throws OlapException {
+    return 0;
+  }
+
+  public NamedList<? extends Member> getChildMembers() throws OlapException {
+    throw new UnsupportedOperationException();
+  }
+
+  public Member getDataMember() {
+    throw new UnsupportedOperationException();
+  }
+
+  public int getDepth() {
+    return 0;
+  }
+
+  public ParseTreeNode getExpression() {
+    throw new UnsupportedOperationException();
+  }
+
+  public Level getLevel() {
+    return this.level;
+  }
+
+  public int getOrdinal() {
+    throw new UnsupportedOperationException();
+  }
+
+  public Member getParentMember() {
+    return this.parentMember;
+  }
+
+  public String getPropertyFormattedValue(Property property) throws OlapException {
+    return String.valueOf(this.getPropertyValue(property));
+  }
+
+  public int getSolveOrder() {
+    throw new UnsupportedOperationException();
+  }
+
+  public boolean isAll() {
+    return false;
+  }
+
+  public boolean isCalculated() {
+    return true;
+  }
+
+  public boolean isCalculatedInQuery() {
+    return true;
+  }
+
+  public boolean isChildOrEqualTo(Member arg0) {
+    return false;
+  }
+
+  public boolean isHidden() {
+    return false;
+  }
+
+  /** @deprecated */
+  @Deprecated
+  public NamedList<Property> getProperties() {
+    NamedListImpl l = new NamedListImpl(this.properties.entrySet());
+    return l;
+  }
+
+  /** @deprecated */
+  @Deprecated
+  public Object getPropertyValue(Property p) throws OlapException {
+    return this.properties.containsKey(p.getName())?this.properties.get(p.getName()):null;
+  }
+
+  /** @deprecated */
+  @Deprecated
+  public void setProperty(Property arg0, Object arg1) throws OlapException {
+  }
+
+  public int hashCode() {
+    boolean prime = true;
+    byte result = 1;
+    int result1 = 31 * result + (this.uniqueName == null?0:this.uniqueName.hashCode());
+    return result1;
+  }
+
+  public boolean equals(Object obj) {
+    if(this == obj) {
+      return true;
+    } else if(obj == null) {
+      return false;
+    } else if(this.getClass() != obj.getClass()) {
+      return false;
+    } else {
+      CalculatedMember other = (CalculatedMember)obj;
+      if(this.uniqueName == null) {
+	if(other.uniqueName != null) {
+	  return false;
 	}
-	
-	/* (non-Javadoc)
-	 * @see org.saiku.query.metadata.Calculated#getFormula()
-	 */
-	@Override
-	public String getFormula() {
-		return formula;
-	}
-
-	public Type getMemberType() {
-		return memberType;
-	}
-
-	public Map<String, String> getFormatProperties() {
-		return properties;
-	}
-	
-	public String getFormatPropertyValue(String key) throws OlapException {
-		if (properties.containsKey(key)) {
-			return properties.get(key);
-		}
-		return null;
-	}
-
-	public void setFormatProperty(String key, String value) throws OlapException {
-		properties.put(key, value);
-	}
-
-
-	public String getCaption() {
-		return name;
-	}
-
-
-	public String getDescription() {
-		return description;
-	}
-
-
-	public String getName() {
-		return name;
-	}
-
-
-	/* (non-Javadoc)
-	 * @see org.saiku.query.metadata.Calculated#getUniqueName()
-	 */
-	@Override
-	public String getUniqueName() {
-		return uniqueName;
-	}
-
-
-	public Aggregator getAggregator() {
-		return Aggregator.CALCULATED;
-	}
-
-
-	public boolean isVisible() {
-		return true;
-	}
-
-
-
-	@Override
-	public List<Member> getAncestorMembers() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public int getChildMemberCount() throws OlapException {
-		return 0;
-	}
-
-
-
-	@Override
-	public NamedList<? extends Member> getChildMembers() throws OlapException {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public Member getDataMember() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public int getDepth() {
-		return 0;
-	}
-
-
-
-	@Override
-	public ParseTreeNode getExpression() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public Level getLevel() {
-		return level;
-	}
-
-
-
-	@Override
-	public int getOrdinal() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public Member getParentMember() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public String getPropertyFormattedValue(Property property) throws OlapException {
-		return String.valueOf(getPropertyValue(property));
-	}
-
-
-
-	@Override
-	public int getSolveOrder() {
-		throw new UnsupportedOperationException();
-	}
-
-
-
-	@Override
-	public boolean isAll() {
-		return false;
-	}
-
-
-
-	@Override
-	public boolean isCalculated() {
-		return true;
-	}
-
-
-
-	@Override
-	public boolean isCalculatedInQuery() {
-		return true;
-	}
-
-
-
-	@Override
-	public boolean isChildOrEqualTo(Member arg0) {
-		return false;
-	}
-
-
-
-	@Override
-	public boolean isHidden() {
-		return false;
-	}
-
-
-
-	/**
-	 * DO NOT USE THIS
-	 */
-	@Deprecated
-	public NamedList<Property> getProperties() {
-		NamedList<Property> l = new NamedListImpl();
-		return l;
-	}
-
-
-
-	/**
-	 * DO NOT USE THIS
-	 */
-	@Deprecated
-	public Object getPropertyValue(Property p) throws OlapException {
-		if (properties.containsKey(p.getName())) {
-			return properties.get(p.getName());
-		}
-		return null;
-	}
-
-
-
-	/**
-	 * DO NOT USE THIS
-	 */
-	@Deprecated
-	public void setProperty(Property arg0, Object arg1) throws OlapException {
-		// TODO Auto-generated method stub
-		
-	}
-
-
-	/* (non-Javadoc)
-	 * @see java.lang.Object#hashCode()
-	 */
-	@Override
-	public int hashCode() {
-		final int prime = 31;
-		int result = 1;
-		result = prime * result
-				+ ((uniqueName == null) ? 0 : uniqueName.hashCode());
-		return result;
-	}
-
-
-
-	/* (non-Javadoc)
-	 * @see java.lang.Object#equals(java.lang.Object)
-	 */
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		CalculatedMember other = (CalculatedMember) obj;
-		if (uniqueName == null) {
-			if (other.uniqueName != null)
-				return false;
-		} else if (!uniqueName.equals(other.uniqueName))
-			return false;
-		return true;
-	}
-
-	
-
+      } else if(!this.uniqueName.equals(other.uniqueName)) {
+	return false;
+      }
+
+      return true;
+    }
+  }
 }
